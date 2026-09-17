@@ -1,0 +1,12 @@
+<!-- Orange, after FIRST Tech Challenge's brand colour (FRC is the blue one). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="7" fill="#f57e25" />
+  <rect x="6" y="8" width="20" height="18" rx="2.5" fill="#fff" />
+  <rect x="6" y="8" width="20" height="5" rx="2.5" fill="#b84e0b" />
+  <rect x="10" y="4" width="2.5" height="6" rx="1.25" fill="#b84e0b" />
+  <rect x="19.5" y="4" width="2.5" height="6" rx="1.25" fill="#b84e0b" />
+  <rect x="9" y="16" width="5" height="3" rx="1" fill="#f57e25" />
+  <rect x="16" y="16" width="7" height="3" rx="1" fill="#fbc38c" />
+  <rect x="9" y="21" width="8" height="3" rx="1" fill="#fbc38c" />
+  <rect x="19" y="21" width="4" height="3" rx="1" fill="#f57e25" />
+</svg>

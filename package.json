@@ -1,0 +1,41 @@
+{
+  "name": "ftc-scheduler",
+  "private": true,
+  "version": "0.0.0",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "^24.0.0",
+      "onFail": "warn"
+    },
+    "packageManager": {
+      "name": "pnpm",
+      "version": "~12.4.0",
+      "onFail": "download"
+    }
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "pnpm run build && wrangler dev",
+    "deploy": "pnpm run build && wrangler deploy"
+  },
+  "dependencies": {
+    "@lucide/vue": "^1.46.0",
+    "vue": "^3.5.39",
+    "vue-router": "^5.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.42.4",
+    "@types/node": "^24.13.2",
+    "@vitejs/plugin-vue": "^6.0.7",
+    "@vue/tsconfig": "^0.9.1",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1",
+    "vue-tsc": "^3.3.5",
+    "wrangler": "^4.106.0"
+  },
+  "packageManager": "pnpm@12.4.2+sha512.08adc6613180275c7c9edada39dcf08c9c61ad4e7eaf330a4f3461f102b0f907423454d117f98e72d47fef0616070644d7bffc973a6a57f5090a6d7c368b07c9"
+}

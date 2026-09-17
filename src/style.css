@@ -1,0 +1,818 @@
+:root {
+  color-scheme: light;
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --text: #1a1a1a;
+  --muted: #6b7280;
+  --border: #d1d5db;
+  --accent: #3b82f6;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  /* FIRST Tech Challenge orange, as distinct from FIRST Robotics Competition's blue.
+     Brand marks only (heading icons, favicon); interactive state stays --accent so
+     blue continues to mean "clickable". */
+  --brand: #f57e25;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --text: #f0f0f0;
+    --muted: #9ca3af;
+    --border: #374151;
+    /* Lifted a little so it keeps contrast against the near-black surface. */
+    --brand: #ff9445;
+  }
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+a {
+  color: var(--accent);
+}
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px;
+}
+h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+h3 {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 10px;
+}
+.page-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.page-sub {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 20px;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 20px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn-primary:hover {
+  filter: brightness(1.1);
+}
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 14px;
+  background: none;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn-secondary:hover {
+  background: rgba(59, 130, 246, 0.08);
+}
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 12px;
+  background: none;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn-ghost:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn-ghost:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btn-ghost:disabled:hover {
+  border-color: var(--border);
+  color: var(--muted);
+}
+button {
+  font-family: inherit;
+}
+
+/* ---- Icons (lucide) ----
+   Sized in em so an icon tracks the font size of whatever it sits in. */
+.icon {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  stroke-width: 2;
+}
+h1 .icon,
+h2 .icon,
+.page-title .icon {
+  width: 0.9em;
+  height: 0.9em;
+  color: var(--brand);
+}
+.btn-primary,
+.btn-secondary,
+.btn-ghost,
+.back-btn,
+.page-title,
+h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+h2 {
+  display: flex;
+}
+.icon-btn {
+  padding: 0 8px;
+}
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-decoration: none;
+  margin-bottom: 16px;
+}
+.back-btn:hover {
+  text-decoration: underline;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 12px;
+}
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  text-align: center;
+}
+.stat-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.stat-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.stat-sub {
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.ahead {
+  color: var(--success);
+}
+.warning {
+  color: var(--warning);
+}
+.behind {
+  color: var(--error);
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+th {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 2px solid var(--border);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+tr:last-child td {
+  border-bottom: none;
+}
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+th.sortable:hover {
+  color: var(--text);
+}
+th.sort-active {
+  color: var(--accent);
+}
+tr.break-row td {
+  text-align: center;
+  font-style: italic;
+  font-size: 0.78rem;
+  padding: 3px;
+  background: var(--bg);
+  color: var(--muted);
+}
+tr:hover:not(.break-row) td {
+  background: rgba(59, 130, 246, 0.04);
+}
+.muted-cell {
+  color: var(--muted);
+}
+.sub-row td:first-child {
+  padding-left: 26px;
+}
+.sub-row td {
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* ---- Field rows ----
+   Every control in a row occupies the same three bands: label, input, hint. Rows align
+   to the top so the inputs stay on one line regardless of whether a field's hint runs
+   to one line, two, or none at all. Anything with no label of its own is pushed down
+   into the input band by --band-offset. */
+.input-row {
+  --label-h: 1.2rem;
+  --field-gap: 4px;
+  --control-h: 40px;
+  --band-offset: calc(var(--label-h) + var(--field-gap));
+
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--field-gap, 4px);
+}
+.field label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--muted);
+  min-height: var(--label-h, 1.2rem);
+  line-height: var(--label-h, 1.2rem);
+}
+
+/* Trailing summary text ("40 qualification matches"), centred on the input band. */
+.row-note {
+  display: flex;
+  align-items: center;
+  min-height: var(--control-h, 40px);
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+/* The offset only applies in rows that actually contain a labelled field — a row of
+   nothing but buttons has no label band to clear, and pushing it down would leave it
+   floating below its neighbours. */
+.input-row:has(.field) > .checkbox-field,
+.input-row:has(.field) > .row-note,
+.block-item-body:has(.field) > .row-note {
+  margin-top: var(--band-offset);
+}
+/* Ghost buttons are 30px; centre them in the taller input band. */
+.input-row:has(.field) > .btn-ghost,
+.input-row:has(.field) > .btn-secondary,
+.block-item-body:has(.field) > .btn-ghost {
+  margin-top: calc(var(--band-offset) + (var(--control-h) - 30px) / 2);
+}
+.field input,
+.field select {
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.field input:focus,
+.field select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+.field-hint {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+.field-hint.warning {
+  color: var(--warning);
+}
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  height: 40px;
+}
+.checkbox-field input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+.config-section {
+  padding-top: 16px;
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.config-section:first-child {
+  padding-top: 0;
+  margin-top: 0;
+  border-top: none;
+}
+
+.loading,
+.error {
+  padding: 32px;
+  text-align: center;
+  font-size: 0.9rem;
+}
+.loading {
+  color: var(--muted);
+}
+.error {
+  color: var(--error);
+}
+.hidden {
+  display: none !important;
+}
+
+/* ---- Timeline (Gantt) ---- */
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.timeline-row {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  align-items: center;
+  gap: 10px;
+}
+.timeline-time {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.timeline-track {
+  position: relative;
+  height: 22px;
+  background: var(--bg);
+  border-radius: 4px;
+}
+.timeline-bar {
+  position: absolute;
+  top: 0;
+  height: 22px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  padding: 0 7px;
+  overflow: hidden;
+  border: 1px solid transparent;
+}
+.timeline-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.timeline-axis {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 10px;
+  margin-top: 6px;
+}
+.timeline-ticks {
+  position: relative;
+  height: 14px;
+}
+.timeline-tick {
+  position: absolute;
+  top: 0;
+  font-size: 0.68rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  transform: translateX(-50%);
+}
+
+/* Per-activity colors: rgba tints of the palette, inline rather than as custom
+   properties, since each is used exactly once. */
+.block-checkin {
+  background: rgba(107, 114, 128, 0.18);
+  border-color: rgba(107, 114, 128, 0.4);
+  color: var(--text);
+}
+.block-inspection {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.45);
+  color: var(--text);
+}
+.block-judging {
+  background: rgba(139, 92, 246, 0.22);
+  border-color: rgba(139, 92, 246, 0.5);
+  color: var(--text);
+}
+.block-ceremony {
+  background: rgba(245, 158, 11, 0.22);
+  border-color: rgba(245, 158, 11, 0.5);
+  color: var(--text);
+}
+.block-practice {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.35);
+  color: var(--text);
+}
+.block-quals {
+  background: rgba(59, 130, 246, 0.3);
+  border-color: rgba(59, 130, 246, 0.6);
+  color: var(--text);
+}
+.block-playoff {
+  background: rgba(239, 68, 68, 0.24);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: var(--text);
+}
+.block-break {
+  background: rgba(107, 114, 128, 0.1);
+  border-color: rgba(107, 114, 128, 0.28);
+  color: var(--muted);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 14px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+}
+
+/* ---- Collapsible section header ---- */
+.section-toggle {
+  display: flex;
+  /* Centred, not baseline-aligned: the h2 is itself a flex container whose first item
+     is an icon, and an icon has no baseline — the browser synthesises one from its
+     bottom edge, which drags the heading's baseline below its own text. */
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.section-toggle:hover h2 {
+  color: var(--accent);
+}
+.section-toggle h2 {
+  flex-shrink: 0;
+}
+.section-chevron {
+  margin-left: auto;
+  color: var(--muted);
+}
+.section-toggle:hover .section-chevron {
+  color: var(--accent);
+}
+/* Shown only on paper, where the toggle button is hidden. */
+.print-only {
+  display: none;
+}
+
+/* ---- Validation ---- */
+.validation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.validation-item {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 0.85rem;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+.validation-item .v-icon {
+  flex-shrink: 0;
+  align-self: center;
+  color: var(--muted);
+}
+.v-error .v-icon {
+  color: var(--error);
+}
+.v-warn .v-icon {
+  color: var(--warning);
+}
+.v-info .v-icon {
+  color: var(--accent);
+}
+.v-ok .v-icon {
+  color: var(--success);
+}
+.validation-item .v-rule {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 99px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.v-error {
+  border-color: rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.07);
+}
+.v-error .v-rule {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--error);
+}
+.v-warn {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.07);
+}
+.v-warn .v-rule {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warning);
+}
+.v-info .v-rule {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--accent);
+}
+.v-ok .v-rule {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+}
+
+/* ---- Match block editor ---- */
+.block-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.block-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: var(--bg);
+}
+.block-item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.block-item-head input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.block-item-head input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+.block-item-body {
+  --label-h: 1.2rem;
+  --field-gap: 4px;
+  --control-h: 34px;
+  --band-offset: calc(var(--label-h) + var(--field-gap));
+
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.block-item-body .field input,
+.block-item-body .field select {
+  height: var(--control-h);
+  font-size: 0.85rem;
+}
+.block-break-row {
+  --label-h: 1.2rem;
+  --field-gap: 4px;
+  --control-h: 34px;
+
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+
+/* ---- Print / PDF ---- */
+@page {
+  margin: 0.5in;
+}
+@media print {
+  :root {
+    color-scheme: light;
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --text: #000000;
+    --muted: #444444;
+    --border: #999999;
+  }
+  body {
+    background: #fff;
+    font-size: 11pt;
+  }
+  .no-print,
+  .btn-primary,
+  .btn-secondary,
+  .btn-ghost,
+  .back-btn {
+    display: none !important;
+  }
+  .print-only {
+    display: flex;
+  }
+  /* Beats v-show's inline display:none — a collapsed section would otherwise be
+     silently missing from the printout. */
+  .section-body {
+    display: block !important;
+  }
+  .container {
+    max-width: none;
+    padding: 0;
+  }
+  /* Cards must be allowed to break across pages — the team slot table is longer than
+     one page on its own, and anything taller than a page that refuses to break wastes
+     the page it starts on. The pieces small enough to stay whole opt in below. */
+  .card {
+    border: none;
+    padding: 0;
+    margin-bottom: 18px;
+  }
+  .page-title {
+    font-size: 16pt;
+  }
+  h2 {
+    font-size: 12pt;
+    break-after: avoid;
+  }
+
+  /* Keep colour in the bars and status pills — a greyscale Gantt is useless. */
+  .timeline-bar,
+  .legend-swatch,
+  .validation-item,
+  .v-rule {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .timeline,
+  .stats-grid {
+    break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+  tr {
+    break-inside: avoid;
+  }
+  /* No horizontal scrollbar on paper — let the wide columns wrap instead of being
+     clipped at the page edge. */
+  .table-wrap {
+    overflow: visible;
+  }
+  table {
+    font-size: 9.5pt;
+  }
+
+  /* Explicit widths for the schedule table. Without these, `nowrap` on the activity
+     column claims most of the row and squeezes detail into a four-line sliver. */
+  .schedule-table {
+    table-layout: fixed;
+  }
+  .schedule-table th:nth-child(1),
+  .schedule-table td:nth-child(1),
+  .schedule-table th:nth-child(2),
+  .schedule-table td:nth-child(2) {
+    width: 11%;
+  }
+  .schedule-table th:nth-child(3),
+  .schedule-table td:nth-child(3) {
+    width: 13%;
+  }
+  .schedule-table th:nth-child(4),
+  .schedule-table td:nth-child(4) {
+    width: 33%;
+    white-space: normal;
+  }
+  .schedule-table th:nth-child(5),
+  .schedule-table td:nth-child(5) {
+    width: 32%;
+    white-space: normal;
+  }
+  tr:hover:not(.break-row) td {
+    background: none;
+  }
+  td,
+  th {
+    padding: 3px 8px;
+  }
+
+  /* Scoped printing: hide every section outside the requested scope. The page header
+     is untagged, so it survives and every printout is identifiable. */
+  body.print-scope-schedule .print-section:not(.print-schedule),
+  body.print-scope-teams .print-section:not(.print-teams) {
+    display: none !important;
+  }
+
+}
