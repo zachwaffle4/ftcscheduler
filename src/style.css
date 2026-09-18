@@ -283,6 +283,22 @@ tr:hover:not(.break-row) td {
 .muted-cell {
   color: var(--muted);
 }
+/* Day heading inside the schedule table, on a multi-day event. Spans the full width and
+   restarts the reader's clock, since each day's times start over. */
+tr.day-row td {
+  background: var(--bg);
+  border-bottom: 2px solid var(--border);
+  padding: 7px 10px;
+  font-size: 0.82rem;
+  white-space: normal;
+}
+tr.day-row td .muted-cell {
+  margin-left: 8px;
+  font-size: 0.75rem;
+}
+tr:hover.day-row td {
+  background: var(--bg);
+}
 .sub-row td:first-child {
   padding-left: 26px;
 }
@@ -447,6 +463,23 @@ tr:hover:not(.break-row) td {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* Day separator inside the Gantt. Every day shares one clock, so the rows below a
+   heading belong to that day and nothing else marks the boundary. */
+.timeline-day-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 10px 0 2px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--border);
+}
+.timeline-day-head:first-child {
+  margin-top: 0;
+}
+.timeline-day-label {
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 .timeline-axis {
   display: grid;
@@ -631,6 +664,21 @@ tr:hover:not(.break-row) td {
 }
 
 /* ---- Match block editor ---- */
+/* On a multi-day event the blocks are grouped under the day that runs them, since a
+   block's position only means anything relative to the others on its own day. */
+.day-group + .day-group {
+  margin-top: 16px;
+}
+.day-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.day-group-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+}
 .block-list {
   display: flex;
   flex-direction: column;
@@ -802,6 +850,10 @@ tr:hover:not(.break-row) td {
   }
   tr:hover:not(.break-row) td {
     background: none;
+  }
+  /* A day heading stranded at the foot of a page is worse than a short page. */
+  tr.day-row {
+    break-after: avoid;
   }
   td,
   th {

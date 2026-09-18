@@ -2,7 +2,8 @@
 import { computed } from 'vue'
 import NumberField from './NumberField.vue'
 import MatchBlockEditor from './MatchBlockEditor.vue'
-import { config, schedule } from '../composables/eventConfig'
+import EventDayEditor from './EventDayEditor.vue'
+import { config, multiDay, schedule } from '../composables/eventConfig'
 import {
   allianceCountForTeams,
   DEFAULT_PLAYOFF_TIMING,
@@ -49,14 +50,20 @@ const allianceSelectValue = computed({
     config.value.allianceCountOverride = v === 'auto' ? null : (Number(v) as AllianceCount)
   },
 })
+
+const qualsOutsideStandard = computed(
+  () => config.value.qualsPerTeam < QUALS_PER_TEAM_MIN || config.value.qualsPerTeam > QUALS_PER_TEAM_MAX,
+)
 </script>
 
 <template>
   <div class="card no-print">
     <h2><Settings class="icon" />Event Configuration</h2>
 
-    <!-- Sections run in event order: the day's parameters first, then each activity
-         in the order it happens, from check-in through the playoff bracket. -->
+    <!-- Sections run in event order: the event's days first, then each activity in the
+         order it happens, from check-in through the playoff bracket. Anything that is
+         per-day — start time, pits open, ceremonies, target finish — lives in the day
+         list rather than here. -->
 
     <div class="config-section">
       <h3>Event</h3>
@@ -65,20 +72,17 @@ const allianceSelectValue = computed({
           <label>Event name</label>
           <input v-model="config.eventName" type="text" placeholder="FTC Qualifying Tournament" />
         </div>
-        <div class="field" style="width: 160px">
-          <label>Date</label>
-          <input v-model="config.eventDate" type="date" />
-        </div>
-        <div class="field" style="width: 130px">
-          <label>Day starts</label>
-          <input v-model="config.dayStart" type="time" />
-        </div>
-        <div class="field" style="width: 130px">
-          <label>Target end</label>
-          <input v-model="config.targetEndTime" type="time" />
-        </div>
+        <label
+          class="checkbox-field"
+          title="Championship-level and Premier events may schedule more than 6 qualification matches per team at FIRST HQ's discretion (§13.6.1)"
+        >
+          <input v-model="config.championshipLevel" type="checkbox" />
+          Championship or Premier event
+        </label>
       </div>
     </div>
+
+    <EventDayEditor />
 
     <div class="config-section">
       <h3>Teams &amp; Matches</h3>
@@ -96,8 +100,12 @@ const allianceSelectValue = computed({
           :min="1"
           :max="12"
           width="130px"
-          :hint="`manual: ${QUALS_PER_TEAM_MIN}–${QUALS_PER_TEAM_MAX}`"
-          :hint-warn="config.qualsPerTeam < QUALS_PER_TEAM_MIN || config.qualsPerTeam > QUALS_PER_TEAM_MAX"
+          :hint="
+            config.championshipLevel
+              ? `manual: ${QUALS_PER_TEAM_MIN}–${QUALS_PER_TEAM_MAX}, more by HQ approval`
+              : `manual: ${QUALS_PER_TEAM_MIN}–${QUALS_PER_TEAM_MAX}`
+          "
+          :hint-warn="qualsOutsideStandard && !config.championshipLevel"
         />
         <NumberField
           v-model="config.numFields"
@@ -128,15 +136,9 @@ const allianceSelectValue = computed({
             <option value="before-judging">Rolling — before judging slot</option>
           </select>
         </div>
-        <NumberField
-          v-model="config.checkIn.minutes"
-          :label="config.checkIn.mode === 'deadline' ? 'Check-in window' : 'Pits open'"
-          suffix="min"
-          :min="0"
-          :max="240"
-          width="150px"
-          :hint="config.checkIn.mode === 'deadline' ? 'I102 deadline' : 'before first activity'"
-        />
+        <span class="row-note">
+          Each day's pits-open window is set in the day list above.
+        </span>
       </div>
     </div>
 
@@ -148,6 +150,14 @@ const allianceSelectValue = computed({
           <select v-model="config.judging.mode">
             <option value="concurrent">Concurrent with qualification matches</option>
             <option value="dedicated">Dedicated window before quals</option>
+          </select>
+        </div>
+        <div v-if="multiDay" class="field" style="width: 140px">
+          <label>Day</label>
+          <select v-model.number="config.judging.day">
+            <option v-for="(day, di) in config.days" :key="day.id" :value="di">
+              {{ day.label || `Day ${di + 1}` }}
+            </option>
           </select>
         </div>
         <NumberField v-model="config.judging.panels" label="Judge panels" :min="1" :max="20" width="120px" />
@@ -177,6 +187,14 @@ const allianceSelectValue = computed({
     <div class="config-section">
       <h3>Inspection</h3>
       <div class="input-row">
+        <div v-if="multiDay" class="field" style="width: 140px">
+          <label>Day</label>
+          <select v-model.number="config.inspection.day">
+            <option v-for="(day, di) in config.days" :key="day.id" :value="di">
+              {{ day.label || `Day ${di + 1}` }}
+            </option>
+          </select>
+        </div>
         <NumberField v-model="config.inspection.tables" label="Inspection tables" :min="1" :max="20" width="150px" />
         <NumberField
           v-model="config.inspection.minutesPerTeam"
@@ -201,6 +219,14 @@ const allianceSelectValue = computed({
           <input v-model="config.practice.enabled" type="checkbox" />
           Run practice matches
         </label>
+        <div v-if="config.practice.enabled && multiDay" class="field" style="width: 140px">
+          <label>Day</label>
+          <select v-model.number="config.practice.day">
+            <option v-for="(day, di) in config.days" :key="day.id" :value="di">
+              {{ day.label || `Day ${di + 1}` }}
+            </option>
+          </select>
+        </div>
         <NumberField
           v-if="config.practice.enabled"
           v-model="config.practice.matchesPerTeam"
@@ -232,33 +258,14 @@ const allianceSelectValue = computed({
       </div>
     </div>
 
-    <div class="config-section">
-      <h3>Drivers Meeting &amp; Opening Ceremony</h3>
-      <div class="input-row">
-        <NumberField
-          v-model="config.driversMeetingMinutes"
-          label="Drivers meeting"
-          suffix="min"
-          :min="0"
-          :max="120"
-          width="150px"
-          hint="before opening ceremony"
-        />
-        <NumberField
-          v-model="config.openingCeremonyMinutes"
-          label="Opening ceremony"
-          suffix="min"
-          :min="0"
-          :max="120"
-          width="160px"
-        />
-      </div>
-    </div>
-
     <MatchBlockEditor />
 
     <div class="config-section">
       <h3>Alliance Selection &amp; Playoffs</h3>
+      <p v-if="multiDay" class="page-sub" style="margin-bottom: 12px">
+        Alliance selection, the bracket and the awards ceremony always close the last day, straight
+        after its final qualification match.
+      </p>
       <div class="input-row">
         <NumberField
           v-model="config.allianceSelectionMinutes"

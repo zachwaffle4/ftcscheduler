@@ -1,44 +1,70 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { TeamSlot } from '../lib/schedule'
+import type { DerivedDay, TeamSlot } from '../lib/schedule'
+import { absMinute } from '../lib/schedule'
 import { fmtTime } from '../lib/format'
 import { downloadCsv, slugify, toCsv } from '../lib/csv'
 import { printScope } from '../lib/print'
 import { config } from '../composables/eventConfig'
 import { ChevronDown, ChevronUp, Download, Printer, Users } from '@lucide/vue'
 
-const props = defineProps<{ slots: TeamSlot[]; estimate: boolean }>()
+const props = defineProps<{ slots: TeamSlot[]; days: DerivedDay[]; estimate: boolean }>()
 
-const cols = [
-  { label: 'Team', sortable: true },
-  { label: 'Judging', sortable: true },
-  { label: 'Panel', sortable: true },
-  { label: 'Inspection', sortable: true },
-  { label: 'Table', sortable: true },
-] as const
+const multiDay = computed(() => props.days.length > 1)
 
-const sortCol = ref(0)
+/**
+ * The day columns only appear on a multi-day event, and the sort indices shift with
+ * them — hence building the column list rather than hard-coding it.
+ */
+const cols = computed(() =>
+  multiDay.value
+    ? ([
+        { label: 'Team', key: 'team' },
+        { label: 'Judging day', key: 'judgingDay' },
+        { label: 'Judging', key: 'judging' },
+        { label: 'Panel', key: 'panel' },
+        { label: 'Inspection day', key: 'inspectionDay' },
+        { label: 'Inspection', key: 'inspection' },
+        { label: 'Table', key: 'table' },
+      ] as const)
+    : ([
+        { label: 'Team', key: 'team' },
+        { label: 'Judging', key: 'judging' },
+        { label: 'Panel', key: 'panel' },
+        { label: 'Inspection', key: 'inspection' },
+        { label: 'Table', key: 'table' },
+      ] as const),
+)
+
+type SortKey = (typeof cols.value)[number]['key']
+
+const sortKey = ref<SortKey>('team')
 const sortDir = ref<'asc' | 'desc'>('asc')
 
-function sortBy(col: number): void {
-  if (sortCol.value === col) sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+function sortBy(key: SortKey): void {
+  if (sortKey.value === key) sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
   else {
-    sortCol.value = col
+    sortKey.value = key
     sortDir.value = 'asc'
   }
 }
 
-function sortVal(row: TeamSlot, col: number): number {
-  switch (col) {
-    case 0:
+function sortVal(row: TeamSlot, key: SortKey): number {
+  switch (key) {
+    case 'team':
       return row.team
-    case 1:
-      return row.judgingStart ?? Infinity
-    case 2:
+    // Sorting a time means sorting across days too, so the day is folded in.
+    case 'judging':
+      return row.judgingStart === null ? Infinity : absMinute(row.judgingDay, row.judgingStart)
+    case 'judgingDay':
+      return row.judgingDay
+    case 'panel':
       return row.judgingPanel ?? Infinity
-    case 3:
-      return row.inspectionStart ?? Infinity
-    case 4:
+    case 'inspection':
+      return row.inspectionStart === null ? Infinity : absMinute(row.inspectionDay, row.inspectionStart)
+    case 'inspectionDay':
+      return row.inspectionDay
+    case 'table':
       return row.inspectionTable ?? Infinity
     default:
       return 0
@@ -47,18 +73,24 @@ function sortVal(row: TeamSlot, col: number): number {
 
 const sortedSlots = computed(() =>
   props.slots.slice().sort((a, b) => {
-    const delta = sortVal(a, sortCol.value) - sortVal(b, sortCol.value)
+    const delta = sortVal(a, sortKey.value) - sortVal(b, sortKey.value)
     return sortDir.value === 'asc' ? delta : -delta
   }),
 )
 
+function dayLabel(index: number): string {
+  return props.days[index]?.label ?? `Day ${index + 1}`
+}
+
 function exportCsv(): void {
   const csv = toCsv(
-    ['Team', 'Judging start', 'Judge panel', 'Inspection start', 'Inspection table'],
+    ['Team', 'Judging day', 'Judging start', 'Judge panel', 'Inspection day', 'Inspection start', 'Inspection table'],
     sortedSlots.value.map((s) => [
       s.team,
+      dayLabel(s.judgingDay),
       s.judgingStart === null ? '' : fmtTime(s.judgingStart),
       s.judgingPanel ?? '',
+      s.inspectionStart === null ? '' : dayLabel(s.inspectionDay),
       s.inspectionStart === null ? '' : fmtTime(s.inspectionStart),
       s.inspectionTable ?? '',
     ]),
@@ -90,6 +122,9 @@ function exportCsv(): void {
         Because match assignments aren't generated here, these slots are staggered against the match
         cadence but can't be guaranteed collision-free.
       </template>
+      <template v-if="multiDay">
+        Both queues run inside a single day; which day is set in the judging and inspection sections.
+      </template>
     </p>
 
     <div class="table-wrap">
@@ -97,15 +132,15 @@ function exportCsv(): void {
         <thead>
           <tr>
             <th
-              v-for="(c, ci) in cols"
-              :key="ci"
-              :class="{ sortable: c.sortable, 'sort-active': sortCol === ci }"
-              @click="c.sortable && sortBy(ci)"
+              v-for="c in cols"
+              :key="c.key"
+              class="sortable"
+              :class="{ 'sort-active': sortKey === c.key }"
+              @click="sortBy(c.key)"
             >
               {{ c.label }}
               <component
-                :is="sortCol === ci && sortDir === 'desc' ? ChevronDown : ChevronUp"
-                v-if="c.sortable"
+                :is="sortKey === c.key && sortDir === 'desc' ? ChevronDown : ChevronUp"
                 class="icon"
                 style="margin-left: 3px; opacity: 0.5; vertical-align: -0.15em"
               />
@@ -115,8 +150,12 @@ function exportCsv(): void {
         <tbody>
           <tr v-for="s in sortedSlots" :key="s.team">
             <td><strong>Team {{ s.team }}</strong></td>
+            <td v-if="multiDay" class="muted-cell">{{ dayLabel(s.judgingDay) }}</td>
             <td>{{ s.judgingStart === null ? '—' : fmtTime(s.judgingStart) }}</td>
             <td class="muted-cell">{{ s.judgingPanel ?? '—' }}</td>
+            <td v-if="multiDay" class="muted-cell">
+              {{ s.inspectionStart === null ? '—' : dayLabel(s.inspectionDay) }}
+            </td>
             <td>{{ s.inspectionStart === null ? 'Open window' : fmtTime(s.inspectionStart) }}</td>
             <td class="muted-cell">{{ s.inspectionTable ?? '—' }}</td>
           </tr>

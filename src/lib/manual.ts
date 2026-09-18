@@ -11,9 +11,9 @@
  * if a number is here, it is a rule; if it isn't, it's an Event Director's choice.
  */
 
-export const MANUAL_VERSION = '2026-2027 BIOBUZZ Competition Manual, V1'
+export const MANUAL_VERSION = '2026-2027 BIOBUZZ Competition Manual, TU01'
 export const MANUAL_URL =
-  'https://ftc-resources.firstinspires.org/ftc/game/cm-html/BIOBUZZ%20Competition%20Manual%20-%20V1.htm'
+  'https://ftc-resources.firstinspires.org/ftc/game/cm-html/BIOBUZZ%20Competition%20Manual%20-%20TU01.htm'
 
 /* ---------------------------------------------------------------- MATCH play */
 

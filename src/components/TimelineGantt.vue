@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { Block, BlockKind } from '../lib/schedule'
-import { fmtTime } from '../lib/format'
+import type { Block, BlockKind, DerivedDay } from '../lib/schedule'
+import { fmtDateShort, fmtDuration, fmtTime } from '../lib/format'
 import { CalendarRange } from '@lucide/vue'
 
-const props = defineProps<{ blocks: Block[] }>()
+const props = defineProps<{ blocks: Block[]; days: DerivedDay[] }>()
 
 const BLOCK_CLASS: Record<BlockKind, string> = {
   checkin: 'block-checkin',
@@ -28,6 +28,11 @@ const LEGEND: ReadonlyArray<{ kind: BlockKind; label: string }> = [
   { kind: 'break', label: 'Break / awards' },
 ]
 
+/**
+ * One clock for every day, spanning the earliest start and latest finish of any of them.
+ * Each day then sits on the same scale, so a day that starts late or finishes early is
+ * visible as exactly that rather than being stretched to fill its own row.
+ */
 const span = computed(() => {
   if (!props.blocks.length) return { start: 0, end: 1 }
   const start = Math.min(...props.blocks.map((b) => b.start))
@@ -45,7 +50,7 @@ function collapsePlayoffs(blocks: Block[]): Block[] {
   const first = blocks.findIndex((b) => b.kind === 'playoff')
   if (first < 0) return blocks
 
-  // The bracket closes the day, so everything from the first playoff match onward —
+  // The bracket closes the event, so everything from the first playoff match onward —
   // matches, award breaks, and the closing ceremony — belongs to it.
   const bracket = blocks.slice(first)
   const matches = bracket.filter((b) => b.kind === 'playoff').length
@@ -56,6 +61,7 @@ function collapsePlayoffs(blocks: Block[]): Block[] {
       id: 'playoffs-collapsed',
       kind: 'playoff',
       label: `Playoffs — ${matches} matches & awards`,
+      day: bracket[0].day,
       start: bracket[0].start,
       end: bracket[bracket.length - 1].end,
       detail: '',
@@ -64,21 +70,29 @@ function collapsePlayoffs(blocks: Block[]): Block[] {
   ]
 }
 
-/** Lane 0 is the main field; higher lanes stack beneath it. */
-const lanes = computed(() => {
-  const byLane = new Map<number, Block[]>()
-  for (const b of props.blocks) {
-    const list = byLane.get(b.lane)
-    if (list) list.push(b)
-    else byLane.set(b.lane, [b])
-  }
-  return [...byLane.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([lane, blocks]) => ({
-      lane,
-      blocks: collapsePlayoffs(blocks.slice().sort((a, b) => a.start - b.start)),
-    }))
-})
+/** Lane 0 is the main field; higher lanes stack beneath it. One set of lanes per day. */
+const dayGroups = computed(() =>
+  props.days.map((day) => {
+    const byLane = new Map<number, Block[]>()
+    for (const b of props.blocks) {
+      if (b.day !== day.index) continue
+      const list = byLane.get(b.lane)
+      if (list) list.push(b)
+      else byLane.set(b.lane, [b])
+    }
+    return {
+      day,
+      lanes: [...byLane.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([lane, blocks]) => ({
+          lane,
+          blocks: collapsePlayoffs(blocks.slice().sort((a, b) => a.start - b.start)),
+        })),
+    }
+  }),
+)
+
+const multiDay = computed(() => props.days.length > 1)
 
 function pct(value: number): number {
   const { start, end } = span.value
@@ -115,24 +129,36 @@ function laneLabel(lane: number, blocks: Block[]): string {
 
 <template>
   <div class="card print-section">
-    <h2><CalendarRange class="icon" />Day at a Glance</h2>
+    <h2><CalendarRange class="icon" />{{ multiDay ? 'Event at a Glance' : 'Day at a Glance' }}</h2>
 
     <div class="timeline">
-      <div v-for="group in lanes" :key="group.lane" class="timeline-row">
-        <span class="timeline-time">{{ laneLabel(group.lane, group.blocks) }}</span>
-        <div class="timeline-track">
-          <div
-            v-for="block in group.blocks"
-            :key="block.id"
-            class="timeline-bar"
-            :class="BLOCK_CLASS[block.kind]"
-            :style="barStyle(block)"
-            :title="`${block.label} · ${fmtTime(block.start)}–${fmtTime(block.end)}`"
-          >
-            <span class="timeline-label">{{ block.label }}</span>
+      <template v-for="group in dayGroups" :key="group.day.index">
+        <div v-if="multiDay" class="timeline-day-head">
+          <span class="timeline-day-label">{{ group.day.label }}</span>
+          <span class="field-hint">
+            {{ fmtDateShort(group.day.date) }} · {{ fmtTime(group.day.start) }}–{{
+              fmtTime(group.day.end)
+            }}
+            · {{ fmtDuration(group.day.lengthMinutes) }}
+          </span>
+        </div>
+
+        <div v-for="lane in group.lanes" :key="`${group.day.index}-${lane.lane}`" class="timeline-row">
+          <span class="timeline-time">{{ laneLabel(lane.lane, lane.blocks) }}</span>
+          <div class="timeline-track">
+            <div
+              v-for="block in lane.blocks"
+              :key="block.id"
+              class="timeline-bar"
+              :class="BLOCK_CLASS[block.kind]"
+              :style="barStyle(block)"
+              :title="`${block.label} · ${fmtTime(block.start)}–${fmtTime(block.end)}`"
+            >
+              <span class="timeline-label">{{ block.label }}</span>
+            </div>
           </div>
         </div>
-      </div>
+      </template>
 
       <div class="timeline-axis">
         <span></span>

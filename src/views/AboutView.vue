@@ -41,6 +41,8 @@ const choices = [
   ['Lunch and breaks', 'Entirely the Event Director’s call — configure them per match block.'],
   ['Drivers meeting', 'Not specified. Defaults to 15 minutes, immediately before the opening ceremony.'],
   ['How check-in closes', 'I102 sets a 45-minute deadline but defers to the Event Director. Some regions — Massachusetts among them — instead keep check-in open and make each team’s own judging slot its deadline. Both are supported; pick the one your region runs, and the compliance checks follow.'],
+  ['How many days the event runs', 'The manual sets no event length and never says a tournament is one day. §13.6.1 makes the number of qualification matches per team the Event Director’s call "based on available schedule time allocated", which is the only place day count enters the rules at all. Add days as you need them; each gets its own start time, pits-open window, drivers meeting and target finish, and you assign matches, judging, inspection and practice to whichever day runs them. Alliance selection, the bracket and awards always close the last day.'],
+  ['More than 6 qualification matches per team', '§13.6.1 sets 5 or 6 for all event types, with Championship-level and Premier events scheduling more at FIRST HQ’s discretion. Marking the event as Championship or Premier says those extra rounds are sanctioned, which is the difference between a warning and a note — it changes nothing about the timing.'],
   ['Playoff bracket timing', 'Tables 13-3…13-6 are labelled "typical timing", not a rule. The three bracket inputs default to exactly those tables; changing them rescales the round cadence, the finals slot, and the award breaks independently. Note that finals always sit immediately before an award break, so they never follow the round cadence — the field is reset during the ceremony.'],
 ]
 </script>
@@ -60,6 +62,14 @@ const choices = [
       Enter your team count, qualification matches per team, judging and inspection capacity, and
       match blocks. You get a minute-by-minute event timeline, per-team judging and inspection slots,
       and a list of every place the schedule conflicts with the competition manual.
+    </p>
+    <p style="font-size: 0.9rem; margin-top: 10px">
+      Events can run over <strong>as many days as you need</strong>. A qualifier is one day; a
+      regional championship or premier event with eight or more qualification matches per team and a
+      full day of judging is usually two. Each day has its own clock, and every activity —
+      qualification match blocks, judging, inspection, practice — is assigned to the day that runs
+      it. The compliance checks then apply per day: each day's length against its own target, each
+      day's matches against the judging that has to fit alongside them.
     </p>
     <p style="font-size: 0.9rem; margin-top: 10px">
       It deliberately does <strong>not</strong> generate qualification match pairings — which four

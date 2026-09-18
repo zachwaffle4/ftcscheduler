@@ -1,14 +1,16 @@
 import { computed, ref, watch } from 'vue'
 import {
   buildSchedule,
+  clampDay,
   defaultConfig,
+  defaultEventDay,
   defaultMatchBlocks,
   normalizeConfig,
   suggestedCycleMinutes,
   type EventConfig,
   type MatchBlock,
 } from '../lib/schedule'
-import { fmtTime24 } from '../lib/format'
+import { addDaysIso, fmtTime24, parseTime } from '../lib/format'
 import { qualMatchCount } from '../lib/manual'
 import { validate } from '../lib/validate'
 
@@ -51,6 +53,9 @@ export const findings = computed(() => validate(config.value, schedule.value))
 
 export const errorCount = computed(() => findings.value.filter((f) => f.level === 'error').length)
 export const warnCount = computed(() => findings.value.filter((f) => f.level === 'warn').length)
+
+/** True once the event spans more than one day — the UI grows day columns and selects. */
+export const multiDay = computed(() => config.value.days.length > 1)
 
 export function resetConfig(): void {
   config.value = defaultConfig()
@@ -109,19 +114,71 @@ export function shareUrl(): string {
   return `${window.location.origin}${window.location.pathname}?c=${encodeConfig(config.value)}`
 }
 
+/* ----------------------------------------------------------------- Event days */
+
+/**
+ * Append a day, dated the morning after the one before it.
+ *
+ * Nothing moves onto the new day automatically. A second day exists to hold matches,
+ * judging or inspection that the director chooses to move there, and guessing which
+ * would silently rewrite a schedule they'd already balanced — so the day arrives empty
+ * and `validate` says so until it's given something to do.
+ */
+export function addEventDay(): void {
+  const days = config.value.days
+  const last = days[days.length - 1]
+  config.value.days = [...days, defaultEventDay(days.length, addDaysIso(last.date, 1))]
+}
+
+/**
+ * Remove a day. Anything assigned to it falls back to the day before rather than being
+ * discarded — deleting a day should not silently delete a third of the qualification
+ * matches with it.
+ */
+export function removeEventDay(id: string): void {
+  const days = config.value.days
+  if (days.length <= 1) return
+  const index = days.findIndex((d) => d.id === id)
+  if (index < 0) return
+
+  const shift = (day: number): number => {
+    const current = clampDay(day, days.length)
+    if (current > index) return current - 1
+    if (current === index) return Math.max(0, index - 1)
+    return current
+  }
+
+  config.value.matchBlocks = config.value.matchBlocks.map((b) => ({ ...b, day: shift(b.day) }))
+  config.value.judging.day = shift(config.value.judging.day)
+  config.value.inspection.day = shift(config.value.inspection.day)
+  config.value.practice.day = shift(config.value.practice.day)
+  config.value.days = days.filter((d) => d.id !== id)
+}
+
 /* --------------------------------------------------------------- Match blocks */
 
 let blockIdSeq = 0
 
-export function addMatchBlock(): void {
+/** Where a day's matches have got to, used to seed a new block's window end time. */
+function lastMatchEndOnDay(day: number): number {
+  const resolved = schedule.value.derived.resolvedBlocks
+  const ends = resolved.filter((r) => r.day === day).map((r) => r.end)
+  return ends.length
+    ? Math.max(...ends)
+    : parseTime(config.value.days[clampDay(day, config.value.days.length)].startTime) + 120
+}
+
+export function addMatchBlock(day = 0): void {
   blockIdSeq += 1
+  const target = clampDay(day, config.value.days.length)
   const cycle = suggestedCycleMinutes(config.value.numFields)
-  // Seed the end time from where the qualification blocks currently finish, so
-  // switching this block to 'window' sizing lands somewhere sensible, not midnight.
-  const endsAt = schedule.value.derived.qualsEnd + 10 * cycle
+  // Seed the end time from where that day's matches currently finish, so switching the
+  // block to 'window' sizing lands somewhere sensible, not midnight.
+  const endsAt = Math.min(lastMatchEndOnDay(target) + 10 * cycle, 23 * 60 + 45)
   config.value.matchBlocks.push({
     id: `block-${Date.now()}-${blockIdSeq}`,
     label: `Match Block ${config.value.matchBlocks.length + 1}`,
+    day: target,
     sizing: 'count',
     matchCount: 10,
     endTime: fmtTime24(endsAt),
@@ -135,13 +192,25 @@ export function removeMatchBlock(id: string): void {
   config.value.matchBlocks = config.value.matchBlocks.filter((b) => b.id !== id)
 }
 
+/**
+ * Reorder a block within its own day. Order only means anything among the blocks that
+ * share a day, so a swap across a day boundary would look like a no-op to the user.
+ */
 export function moveMatchBlock(id: string, delta: -1 | 1): void {
   const blocks = config.value.matchBlocks
   const i = blocks.findIndex((b) => b.id === id)
-  const j = i + delta
-  if (i < 0 || j < 0 || j >= blocks.length) return
-  const [moved] = blocks.splice(i, 1)
-  blocks.splice(j, 0, moved)
+  if (i < 0) return
+
+  const day = blocks[i].day
+  const siblings = blocks.map((b, index) => ({ b, index })).filter(({ b }) => b.day === day)
+  const position = siblings.findIndex(({ index }) => index === i)
+  const target = siblings[position + delta]
+  if (!target) return
+
+  const next = blocks.slice()
+  next[i] = target.b
+  next[target.index] = blocks[i]
+  config.value.matchBlocks = next
 }
 
 export function toggleBlockBreak(id: string): void {
@@ -155,7 +224,7 @@ export function toggleBlockBreak(id: string): void {
  *
  * Window blocks are left alone — their size is a consequence of the times the user
  * pinned, so silently resizing them would throw away the thing they asked for. Only
- * the count-sized blocks absorb the difference.
+ * the count-sized blocks absorb the difference, wherever in the event they sit.
  */
 export function distributeMatchesEvenly(): void {
   const total = qualMatchCount(config.value.numTeams, config.value.qualsPerTeam)
@@ -182,8 +251,15 @@ export function distributeMatchesEvenly(): void {
   })
 }
 
-/** Discard the current blocks for a fresh morning/afternoon split. */
+/**
+ * Discard the current blocks for a fresh morning/afternoon split on every day, with the
+ * event's matches shared out between them.
+ */
 export function reseedMatchBlocks(): void {
   const total = qualMatchCount(config.value.numTeams, config.value.qualsPerTeam)
-  config.value.matchBlocks = defaultMatchBlocks(total, suggestedCycleMinutes(config.value.numFields))
+  config.value.matchBlocks = defaultMatchBlocks(
+    total,
+    suggestedCycleMinutes(config.value.numFields),
+    config.value.days.length,
+  )
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { Block } from '../lib/schedule'
-import { fmtDuration, fmtTime } from '../lib/format'
+import type { Block, DerivedDay } from '../lib/schedule'
+import { fmtDateShort, fmtDuration, fmtTime } from '../lib/format'
 import { downloadCsv, slugify, toCsv } from '../lib/csv'
 import { printScope } from '../lib/print'
 import { config } from '../composables/eventConfig'
@@ -14,7 +14,7 @@ import {
   Printer,
 } from '@lucide/vue'
 
-const props = defineProps<{ blocks: Block[] }>()
+const props = defineProps<{ blocks: Block[]; days: DerivedDay[] }>()
 
 /**
  * A full bracket is a dozen-plus near-identical rows one cycle apart. Compressing runs
@@ -23,17 +23,20 @@ const props = defineProps<{ blocks: Block[] }>()
  */
 const compressPlayoffs = ref(true)
 
-type Row = { block: Block; concurrent: boolean; compressed: number }
+type Row =
+  | { type: 'day'; day: DerivedDay }
+  | { type: 'block'; block: Block; concurrent: boolean; compressed: number }
 
+const multiDay = computed(() => props.days.length > 1)
+
+/** Event order: day by day, then by clock, with concurrent lanes under their parent. */
 const chronological = computed(() =>
-  props.blocks.slice().sort((a, b) => a.start - b.start || a.lane - b.lane),
+  props.blocks.slice().sort((a, b) => a.day - b.day || a.start - b.start || a.lane - b.lane),
 )
 
-const rows = computed<Row[]>(() => {
-  const source = chronological.value
-
+function compress(source: Block[]): Row[] {
   if (!compressPlayoffs.value) {
-    return source.map((b) => ({ block: b, concurrent: b.lane > 0, compressed: 1 }))
+    return source.map((b) => ({ type: 'block', block: b, concurrent: b.lane > 0, compressed: 1 }))
   }
 
   const out: Row[] = []
@@ -41,7 +44,7 @@ const rows = computed<Row[]>(() => {
     const block = source[i]
 
     if (block.kind !== 'playoff') {
-      out.push({ block, concurrent: block.lane > 0, compressed: 1 })
+      out.push({ type: 'block', block, concurrent: block.lane > 0, compressed: 1 })
       continue
     }
 
@@ -51,11 +54,12 @@ const rows = computed<Row[]>(() => {
     i = j
 
     if (run.length === 1) {
-      out.push({ block, concurrent: false, compressed: 1 })
+      out.push({ type: 'block', block, concurrent: false, compressed: 1 })
       continue
     }
 
     out.push({
+      type: 'block',
       block: {
         ...block,
         id: `${block.id}-run`,
@@ -68,17 +72,34 @@ const rows = computed<Row[]>(() => {
     })
   }
   return out
+}
+
+const rows = computed<Row[]>(() => {
+  if (!multiDay.value) return compress(chronological.value)
+
+  // One heading per day, so a printed multi-day schedule can be read a day at a time.
+  return props.days.flatMap<Row>((day) => {
+    const own = chronological.value.filter((b) => b.day === day.index)
+    if (!own.length) return []
+    return [{ type: 'day', day }, ...compress(own)]
+  })
 })
 
 const playoffRunCount = computed(
   () => chronological.value.filter((b) => b.kind === 'playoff').length,
 )
 
+function dayLabel(index: number): string {
+  return props.days[index]?.label ?? `Day ${index + 1}`
+}
+
 /** Always exports the full schedule — compression is a view preference, not data. */
 function exportCsv(): void {
   const csv = toCsv(
-    ['Start', 'End', 'Duration', 'Activity', 'Detail', 'Concurrent'],
+    ['Day', 'Date', 'Start', 'End', 'Duration', 'Activity', 'Detail', 'Concurrent'],
     chronological.value.map((b) => [
+      dayLabel(b.day),
+      props.days[b.day]?.date ?? '',
       fmtTime(b.start),
       fmtTime(b.end),
       fmtDuration(b.end - b.start),
@@ -128,23 +149,35 @@ function exportCsv(): void {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="r in rows" :key="r.block.id" :class="{ 'sub-row': r.concurrent }">
-            <td>{{ fmtTime(r.block.start) }}</td>
-            <td class="muted-cell">{{ fmtTime(r.block.end) }}</td>
-            <td class="muted-cell">{{ fmtDuration(r.block.end - r.block.start) }}</td>
-            <td>
-              <strong v-if="!r.concurrent">{{ r.block.label }}</strong>
-              <template v-else>
-                <CornerDownRight class="icon" style="margin-right: 4px; opacity: 0.6" />{{
-                  r.block.label
-                }}
-              </template>
-              <span v-if="r.compressed > 1" class="muted-cell" style="font-size: 0.75rem">
-                · {{ r.compressed }} matches
-              </span>
-            </td>
-            <td class="muted-cell">{{ r.block.detail }}</td>
-          </tr>
+          <template v-for="r in rows" :key="r.type === 'day' ? `day-${r.day.index}` : r.block.id">
+            <tr v-if="r.type === 'day'" class="day-row">
+              <td colspan="5">
+                <strong>{{ r.day.label }}</strong>
+                <span class="muted-cell">
+                  {{ fmtDateShort(r.day.date) }} · {{ fmtTime(r.day.start) }}–{{ fmtTime(r.day.end) }} ·
+                  {{ fmtDuration(r.day.lengthMinutes) }} ·
+                  {{ r.day.matchCount }} qual {{ r.day.matchCount === 1 ? 'match' : 'matches' }}
+                </span>
+              </td>
+            </tr>
+            <tr v-else :class="{ 'sub-row': r.concurrent }">
+              <td>{{ fmtTime(r.block.start) }}</td>
+              <td class="muted-cell">{{ fmtTime(r.block.end) }}</td>
+              <td class="muted-cell">{{ fmtDuration(r.block.end - r.block.start) }}</td>
+              <td>
+                <strong v-if="!r.concurrent">{{ r.block.label }}</strong>
+                <template v-else>
+                  <CornerDownRight class="icon" style="margin-right: 4px; opacity: 0.6" />{{
+                    r.block.label
+                  }}
+                </template>
+                <span v-if="r.compressed > 1" class="muted-cell" style="font-size: 0.75rem">
+                  · {{ r.compressed }} matches
+                </span>
+              </td>
+              <td class="muted-cell">{{ r.block.detail }}</td>
+            </tr>
+          </template>
         </tbody>
       </table>
     </div>

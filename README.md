@@ -3,7 +3,8 @@
 A schedule builder for *FIRST* Tech Challenge event directors. Set your team count,
 qualification matches per team, judging and inspection capacity, and match blocks, and get a
 minute-by-minute event timeline, per-team judging and inspection slots, and a list of every place
-the schedule conflicts with the competition manual.
+the schedule conflicts with the competition manual. One day for a qualifier, two or more for a
+regional championship or premier event.
 
 Every timing rule is checked against the [2026-2027 BIOBUZZ Competition Manual, V1][manual], and
 every constant lives in [`src/lib/manual.ts`](src/lib/manual.ts) with the section or rule number it
@@ -28,7 +29,7 @@ time, never the length of a match block.
 | Rule | What |
 |---|---|
 | §10.4 | Match periods — 0:30 auto + 0:08 transition + 2:00 teleop = 2:38 of play |
-| §13.6.1 | 5 or 6 qualification matches per team; schedule published 15 min before quals |
+| §13.6.1 | 5 or 6 qualification matches per team — more for Championship/Premier events; schedule published 15 min before quals |
 | §13.6.2 | Surrogates assigned when teams × quals isn't divisible by 4 |
 | §3.3 | Scheduled practice matches may be played before passing inspection; filler-line ones may not |
 | T406 | 5-minute minimum break between a team's qual matches, 8 minutes in playoffs |
@@ -37,8 +38,35 @@ time, never the length of a match block.
 | Table 13-2 | Playoff alliances: 4–10 → 2, 11–20 → 4, 21–40 → 6, 41–64 → 8 |
 | Tables 13-3…13-6 | Playoff bracket timing — the default round cadence, finals slot, and award breaks |
 
-Anything the manual leaves open — field reset time, inspection duration, ceremony lengths, lunch —
-is configurable, with conventional (not authoritative) defaults.
+Anything the manual leaves open — field reset time, inspection duration, ceremony lengths, lunch,
+how many days the event runs — is configurable, with conventional (not authoritative) defaults.
+
+## Multi-day events
+
+An event is a list of days, and a one-day qualifier is just the one-day case. Add days for a
+regional championship or premier event, where eight or more qualification matches per team plus a
+full day of judging doesn't fit between one sunrise and one supper.
+
+Each day carries its own start time, pits-open window, drivers meeting, opening ceremony and target
+finish. Everything else is then *assigned* to a day: each qualification match block belongs to one,
+and so do judging, inspection and practice. Alliance selection, the playoff bracket and the awards
+ceremony always close the final day, straight after its last qualification match.
+
+Matches are numbered across the whole event in the order they're played — day by day, then block by
+block — so a block's `#41–60` means what it says regardless of which day it sits on. The schedule
+table, the Gantt, both CSV exports and the printouts are all grouped by day, and the compliance
+checks go per day: each day's finish against its own target, and judging capacity against the match
+time on *its* day rather than the event's.
+
+Nothing moves onto a new day by itself. A day added is a day empty, and the checks say so until you
+give it something to run — silently redistributing a schedule you'd already balanced would be worse
+than an obvious gap. Removing a day moves whatever was assigned to it back a day rather than
+deleting it.
+
+The number of qualification matches per team is the Event Director's call under §13.6.1, with
+Championship-level and Premier events scheduling more than 6 at FIRST HQ's discretion. Marking the
+event as Championship or Premier records that those extra rounds are sanctioned, which turns the
+out-of-range check from a warning into a note. It changes no timing.
 
 ## Routes
 
@@ -85,9 +113,11 @@ export always contains the full uncompressed schedule regardless of that setting
 **Match blocks** can be sized three ways, following FTC Live: a fixed match *count*, a wall-clock
 *end time* (the block runs until then, fitting as many whole cycles as it can), or *remaining* to
 absorb whatever the other blocks leave. A block's *start* is never something you set — it's wherever
-the schedule reaches it — so growing an earlier block automatically shrinks a later window block
-rather than creating a conflict. If a window block's end time has already passed by the time the day
-gets there, it holds no matches and you get an error saying so.
+its day has got to by the time it's reached — so growing an earlier block automatically shrinks a
+later window block rather than creating a conflict. If a window block's end time has already passed
+by the time the day gets there, it holds no matches and you get an error saying so. On a multi-day
+event a *remaining* block still balances against the whole event's match count, not just its own
+day's.
 
 **Check-in** has two modes. The default is I102 as written — check-in closes 45 minutes before
 qualification matches. The alternative is *rolling*: check-in stays open and each team is simply due

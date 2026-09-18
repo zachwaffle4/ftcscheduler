@@ -45,3 +45,59 @@ export function fmtMinSec(seconds: number): string {
   const s = Math.round(seconds)
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
+
+/* ------------------------------------------------------------------- Dates */
+
+/**
+ * Parse "YYYY-MM-DD" as a local date. The `T00:00:00` matters: bare "YYYY-MM-DD" is
+ * parsed as UTC, which renders as the previous day for anyone west of Greenwich.
+ */
+function parseDate(iso: string | undefined | null): Date | null {
+  if (typeof iso !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null
+  const date = new Date(`${iso}T00:00:00`)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+/** "2026-09-17" → "Thursday, September 17, 2026". Empty for an unparseable date. */
+export function fmtDateLong(iso: string | undefined | null): string {
+  const date = parseDate(iso)
+  return date
+    ? date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+    : ''
+}
+
+/** "2026-09-17" → "Thu, Sep 17". Empty for an unparseable date. */
+export function fmtDateShort(iso: string | undefined | null): string {
+  const date = parseDate(iso)
+  return date ? date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : ''
+}
+
+/**
+ * The dates of a multi-day event as one phrase: "September 17–18, 2026" when the days
+ * share a month, "October 31 – November 1, 2026" when they don't, and the single long
+ * date when the event is one day.
+ */
+export function fmtDateRange(isoDates: readonly string[]): string {
+  const dates = isoDates.map(parseDate).filter((d): d is Date => d !== null)
+  if (!dates.length) return ''
+  const first = dates[0]
+  const last = dates[dates.length - 1]
+  if (first.getTime() === last.getTime()) return fmtDateLong(isoDates[0])
+
+  const sameMonth = first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear()
+  const head = first.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+  const tail = sameMonth
+    ? String(last.getDate())
+    : last.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+  const joiner = sameMonth ? '–' : ' – '
+  return `${head}${joiner}${tail}, ${last.getFullYear()}`
+}
+
+/** Shift "YYYY-MM-DD" by whole days. Returns the input unchanged if it won't parse. */
+export function addDaysIso(iso: string, delta: number): string {
+  const date = parseDate(iso)
+  if (!date) return iso
+  date.setDate(date.getDate() + delta)
+  const pad = (n: number): string => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}

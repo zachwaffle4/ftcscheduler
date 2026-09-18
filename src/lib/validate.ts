@@ -5,8 +5,9 @@
  * name the rule or section they come from — "I102", "§13.6.1" — so they can be looked
  * up and argued with. The rest are practical checks the manual says nothing about:
  * whether the match blocks add up, whether a time-windowed block can still happen,
- * whether the day runs past the target end time. Those carry a plain label instead of
- * a citation, which is what distinguishes them in the UI.
+ * whether a day runs past its target end time, whether a second day has anything on it.
+ * Those carry a plain label instead of a citation, which is what distinguishes them in
+ * the UI.
  */
 
 import {
@@ -23,7 +24,15 @@ import {
   SCHEDULE_PUBLISH_LEAD_MINUTES,
 } from './manual'
 import { fmtDuration, fmtMinSec, fmtTime, parseTime } from './format'
-import { suggestedCycleMinutes, type EventConfig, type Schedule } from './schedule'
+import {
+  absMinute,
+  blockEnd,
+  blockStart,
+  clampDay,
+  suggestedCycleMinutes,
+  type EventConfig,
+  type Schedule,
+} from './schedule'
 
 export type FindingLevel = 'error' | 'warn' | 'info' | 'ok'
 
@@ -41,6 +50,15 @@ export function validate(config: EventConfig, schedule: Schedule): Finding[] {
   const out: Finding[] = []
   const d = schedule.derived
   const teams = Math.floor(config.numTeams)
+  const dayCount = d.days.length
+  const multiDay = dayCount > 1
+
+  /** "" on a single-day event, " on Day 2" when naming the day actually tells you something. */
+  const onDay = (index: number): string => (multiDay ? ` on ${d.days[clampDay(index, dayCount)].label}` : '')
+  const dayName = (index: number): string => d.days[clampDay(index, dayCount)].label
+
+  const judgingDay = clampDay(config.judging.day, dayCount)
+  const inspectionDay = clampDay(config.inspection.day, dayCount)
 
   if (teams < MIN_TEAMS) {
     out.push({
@@ -57,11 +75,19 @@ export function validate(config: EventConfig, schedule: Schedule): Finding[] {
   }
 
   // Which I102 check applies depends on how the region runs check-in.
-  const pitsOpen = schedule.blocks.find((b) => b.kind === 'checkin' && b.lane === 0)
+  const pitsOpen = schedule.blocks.find((b) => b.kind === 'checkin' && b.lane === 0 && b.day === 0)
 
   if (config.checkIn.mode === 'deadline') {
-    if (pitsOpen) {
-      const lead = d.qualsStart - pitsOpen.end
+    if (pitsOpen && d.qualsStartDay > 0) {
+      // Nothing to check: the deadline is on the first day and matches are a day or
+      // more later, which clears 45 minutes by a wide margin.
+      out.push({
+        level: 'ok',
+        rule: 'I102',
+        message: `Check-in closes at ${fmtTime(pitsOpen.end)} on ${dayName(0)}, and qualification matches don't begin until ${dayName(d.qualsStartDay)} — comfortably clear of the ${CHECKIN_DEADLINE_BEFORE_QUALS_MINUTES}-minute deadline.`,
+      })
+    } else if (pitsOpen) {
+      const lead = d.qualsStart - absMinute(0, pitsOpen.end)
       if (lead < CHECKIN_DEADLINE_BEFORE_QUALS_MINUTES) {
         out.push({
           level: 'error',
@@ -75,14 +101,14 @@ export function validate(config: EventConfig, schedule: Schedule): Finding[] {
           message: `Check-in closes ${fmtDuration(lead)} before qualification matches (${CHECKIN_DEADLINE_BEFORE_QUALS_MINUTES} min required).`,
         })
       }
-    }
 
-    if (pitsOpen && d.qualsStart - pitsOpen.end < SCHEDULE_PUBLISH_LEAD_MINUTES) {
-      out.push({
-        level: 'warn',
-        rule: '§13.6.1',
-        message: `The qualification schedule must be published no later than ${SCHEDULE_PUBLISH_LEAD_MINUTES} minutes before matches begin — that falls before check-in closes here.`,
-      })
+      if (lead < SCHEDULE_PUBLISH_LEAD_MINUTES) {
+        out.push({
+          level: 'warn',
+          rule: '§13.6.1',
+          message: `The qualification schedule must be published no later than ${SCHEDULE_PUBLISH_LEAD_MINUTES} minutes before matches begin — that falls before check-in closes here.`,
+        })
+      }
     }
   } else {
     // Rolling check-in. I102's own wording permits this, so it is not a violation.
@@ -99,18 +125,21 @@ export function validate(config: EventConfig, schedule: Schedule): Finding[] {
       .filter((t): t is number => t !== null)
       .reduce<number | null>((min, t) => (min === null || t < min ? t : min), null)
 
-    if (pitsOpen && firstJudging !== null && firstJudging < pitsOpen.end) {
-      out.push({
-        level: 'warn',
-        rule: 'I102',
-        message: `The first judging slot is at ${fmtTime(firstJudging)}, before the pits-open window ends at ${fmtTime(pitsOpen.end)}. That team has no window in which to check in — start judging later or open the pits earlier.`,
-      })
-    } else if (pitsOpen && firstJudging !== null) {
-      out.push({
-        level: 'ok',
-        rule: 'I102',
-        message: `Teams have from ${fmtTime(pitsOpen.start)} until their judging slot to check in; the earliest deadline is ${fmtTime(firstJudging)}.`,
-      })
+    if (pitsOpen && firstJudging !== null) {
+      const deadline = absMinute(judgingDay, firstJudging)
+      if (deadline < absMinute(0, pitsOpen.end)) {
+        out.push({
+          level: 'warn',
+          rule: 'I102',
+          message: `The first judging slot is at ${fmtTime(firstJudging)}${onDay(judgingDay)}, before the pits-open window ends at ${fmtTime(pitsOpen.end)}. That team has no window in which to check in — start judging later or open the pits earlier.`,
+        })
+      } else {
+        out.push({
+          level: 'ok',
+          rule: 'I102',
+          message: `Teams have from ${fmtTime(pitsOpen.start)} until their judging slot to check in; the earliest deadline is ${fmtTime(firstJudging)}${onDay(judgingDay)}.`,
+        })
+      }
     }
   }
 
@@ -129,10 +158,15 @@ export function validate(config: EventConfig, schedule: Schedule): Finding[] {
   }
 
   if (config.qualsPerTeam < QUALS_PER_TEAM_MIN || config.qualsPerTeam > QUALS_PER_TEAM_MAX) {
+    // Championship-level and Premier events are exactly the exception §13.6.1 names, so
+    // saying so downgrades this from something to fix to something to have approved.
+    const sanctioned = config.championshipLevel && config.qualsPerTeam > QUALS_PER_TEAM_MAX
     out.push({
-      level: 'warn',
+      level: sanctioned ? 'info' : 'warn',
       rule: '§13.6.1',
-      message: `${config.qualsPerTeam} qualification matches per team is outside the standard ${QUALS_PER_TEAM_MIN}–${QUALS_PER_TEAM_MAX}. Only Championship and Premier events schedule more, at FIRST HQ's discretion.`,
+      message: sanctioned
+        ? `${config.qualsPerTeam} qualification matches per team is above the standard ${QUALS_PER_TEAM_MIN}–${QUALS_PER_TEAM_MAX}, which Championship and Premier events schedule at FIRST HQ's discretion. Confirm the extra rounds are approved for this event.`
+        : `${config.qualsPerTeam} qualification matches per team is outside the standard ${QUALS_PER_TEAM_MIN}–${QUALS_PER_TEAM_MAX}. Only Championship and Premier events schedule more, at FIRST HQ's discretion.`,
     })
   }
 
@@ -152,7 +186,7 @@ export function validate(config: EventConfig, schedule: Schedule): Finding[] {
     out.push({
       level: 'error',
       rule: 'Block window',
-      message: `“${block.label}” is set to end by ${fmtTime(parseTime(block.endTime))}, but the schedule doesn't reach it until ${fmtTime(r.start)}, so it holds no matches. Push its end time later or shorten what runs before it.`,
+      message: `“${block.label}” is set to end by ${fmtTime(parseTime(block.endTime))}, but ${multiDay ? dayName(r.day) : 'the schedule'} doesn't reach it until ${fmtTime(r.start)}, so it holds no matches. Push its end time later or shorten what runs before it.`,
     })
   })
 
@@ -233,28 +267,38 @@ export function validate(config: EventConfig, schedule: Schedule): Finding[] {
 
   const allianceSelection = schedule.blocks.find((b) => b.label === 'Alliance Selection')
   const judging = schedule.blocks.find((b) => b.kind === 'judging')
-  if (judging && allianceSelection && judging.end > allianceSelection.start) {
+  if (judging && allianceSelection && blockEnd(judging) > blockStart(allianceSelection)) {
     out.push({
       level: 'error',
       rule: '§6.1.2',
-      message: `Judging runs until ${fmtTime(judging.end)}, past the start of alliance selection at ${fmtTime(allianceSelection.start)}. Judges need deliberation time before awards — add panels or shorten interviews.`,
+      message: `Judging runs until ${fmtTime(judging.end)}${onDay(judging.day)}, past the start of alliance selection at ${fmtTime(allianceSelection.start)}${onDay(allianceSelection.day)}. Judges need deliberation time before awards — add panels or shorten interviews.`,
     })
   }
 
   if (config.judging.mode === 'concurrent') {
-    const matchWindow = d.qualsEnd - d.qualsStart
-    if (d.judgingMinutes > matchWindow) {
+    // Concurrent means concurrent with one day's matches — the window is that day's
+    // match time, not the event's.
+    const matchWindow = d.days[judgingDay].matchMinutes
+    if (matchWindow === 0) {
       out.push({
         level: 'error',
         rule: '§6.1.2',
-        message: `Judging needs ${fmtDuration(d.judgingMinutes)} but the qualification block is only ${fmtDuration(matchWindow)}. Add panels, shorten interviews, or switch to a dedicated judging window.`,
+        message: `Judging is set to run concurrently with qualification matches${onDay(judgingDay)}, but no match blocks are assigned to that day. Move judging to a day that has matches, or give it a dedicated window.`,
+      })
+    } else if (d.judgingMinutes > matchWindow) {
+      out.push({
+        level: 'error',
+        rule: '§6.1.2',
+        message: `Judging needs ${fmtDuration(d.judgingMinutes)} but ${multiDay ? `${dayName(judgingDay)}'s` : 'the'} qualification matches only run for ${fmtDuration(matchWindow)}. Add panels, shorten interviews, move matches onto that day, or switch to a dedicated judging window.`,
       })
     }
-    if (d.inspectionMinutes > matchWindow) {
+
+    const inspectionWindow = d.days[inspectionDay].matchMinutes
+    if (inspectionWindow > 0 && d.inspectionMinutes > inspectionWindow) {
       out.push({
         level: 'error',
         rule: '§3.3.1',
-        message: `Inspection needs ${fmtDuration(d.inspectionMinutes)} but the qualification block is only ${fmtDuration(matchWindow)}. Teams must pass inspection before playing qualification matches.`,
+        message: `Inspection needs ${fmtDuration(d.inspectionMinutes)} but ${multiDay ? `${dayName(inspectionDay)}'s` : 'the'} qualification matches only run for ${fmtDuration(inspectionWindow)}. Teams must pass inspection before playing qualification matches.`,
       })
     }
   }
@@ -271,39 +315,75 @@ export function validate(config: EventConfig, schedule: Schedule): Finding[] {
     const inspectionBlock = schedule.blocks.find((b) => b.kind === 'inspection')
     const judgingBlock = schedule.blocks.find((b) => b.kind === 'judging')
     const window = Math.max(
-      inspectionBlock ? inspectionBlock.end - inspectionBlock.start : 0,
-      judgingBlock ? judgingBlock.end - judgingBlock.start : 0,
+      inspectionBlock && inspectionBlock.day === practice.day ? inspectionBlock.end - inspectionBlock.start : 0,
+      judgingBlock && judgingBlock.day === practice.day ? judgingBlock.end - judgingBlock.start : 0,
     )
     if (practice.end - practice.start > window) {
       out.push({
         level: 'warn',
         rule: 'Practice',
-        message: `Practice matches need ${fmtDuration(practice.end - practice.start)}, longer than the ${fmtDuration(window)} inspection and judging window, so they set the pre-match schedule instead of hiding inside it.`,
+        message: `Practice matches need ${fmtDuration(practice.end - practice.start)}, longer than the ${fmtDuration(window)} inspection and judging window${onDay(practice.day)}, so they set the pre-match schedule instead of hiding inside it.`,
       })
     }
   }
 
+  // Inspection has to be done before a team's first match, whichever day each is on.
   const inspection = schedule.blocks.find((b) => b.kind === 'inspection')
-  if (config.judging.mode === 'concurrent' && inspection) {
+  if (inspection && blockEnd(inspection) > d.qualsStart) {
+    const late = inspectionDay > d.qualsStartDay
     out.push({
-      level: 'warn',
+      level: late ? 'error' : 'warn',
       rule: '§3.3.1',
-      message: `Inspection runs until ${fmtTime(inspection.end)}, after matches begin. Teams cannot play qualification matches before passing inspection — make sure early-match teams are inspected first.`,
+      message: late
+        ? `Inspection is scheduled${onDay(inspectionDay)} but qualification matches begin${onDay(d.qualsStartDay)}. Teams cannot play qualification matches before passing inspection — move inspection to ${dayName(d.qualsStartDay)} or earlier.`
+        : `Inspection runs until ${fmtTime(inspection.end)}${onDay(inspection.day)}, after matches begin. Teams cannot play qualification matches before passing inspection — make sure early-match teams are inspected first.`,
     })
   }
 
-  const target = parseTime(config.targetEndTime)
-  if (target > 0 && d.dayEnd > target) {
+  /* ------------------------------------------------------- Day-level checks */
+
+  d.days.forEach((day, i) => {
+    if (day.targetEnd > 0 && day.end > day.targetEnd) {
+      out.push({
+        level: 'warn',
+        rule: 'Day length',
+        message: `${multiDay ? `${day.label} ends` : 'The event ends'} at ${fmtTime(day.end)}, ${fmtDuration(day.end - day.targetEnd)} past the ${fmtTime(day.targetEnd)} target. ${multiDay ? 'That day' : 'Total day'} is ${fmtDuration(day.lengthMinutes)} long.`,
+      })
+    } else if (day.targetEnd > 0) {
+      out.push({
+        level: 'ok',
+        rule: 'Day length',
+        message: `${multiDay ? `${day.label} ends` : 'The event ends'} at ${fmtTime(day.end)}, within the ${fmtTime(day.targetEnd)} target. ${multiDay ? 'That day' : 'Total day'} is ${fmtDuration(day.lengthMinutes)} long.`,
+      })
+    }
+
+    // A day carrying nothing but its own pits-open window is almost always a day that
+    // was added and then never given any matches.
+    const scheduled = schedule.blocks.filter((b) => b.day === i && b.kind !== 'checkin')
+    if (multiDay && !scheduled.length) {
+      out.push({
+        level: 'warn',
+        rule: 'Day structure',
+        message: `Nothing is scheduled on ${day.label} beyond the pits opening. Assign it match blocks, move judging or inspection to it, or remove the day.`,
+      })
+    }
+
+    // Dates out of order make every printout confusing, and the event's day order is
+    // the list order, not the dates.
+    if (i > 0 && day.date && d.days[i - 1].date && day.date <= d.days[i - 1].date) {
+      out.push({
+        level: 'warn',
+        rule: 'Day order',
+        message: `${day.label} is dated ${day.date}, which is not after ${d.days[i - 1].label} (${d.days[i - 1].date}). Days run in list order regardless, so the dates are what's wrong.`,
+      })
+    }
+  })
+
+  if (multiDay) {
     out.push({
-      level: 'warn',
-      rule: 'Day length',
-      message: `The event ends at ${fmtTime(d.dayEnd)}, ${fmtDuration(d.dayEnd - target)} past the ${fmtTime(target)} target. Total day is ${fmtDuration(d.dayLengthMinutes)}.`,
-    })
-  } else if (target > 0) {
-    out.push({
-      level: 'ok',
-      rule: 'Day length',
-      message: `The event ends at ${fmtTime(d.dayEnd)}, within the ${fmtTime(target)} target. Total day is ${fmtDuration(d.dayLengthMinutes)}.`,
+      level: 'info',
+      rule: 'Day structure',
+      message: `${dayCount}-day event: ${d.days.map((day) => `${day.label} — ${day.matchCount} qual ${day.matchCount === 1 ? 'match' : 'matches'}, ${fmtDuration(day.lengthMinutes)}`).join(' · ')}. The playoff bracket and awards close ${dayName(dayCount - 1)}.`,
     })
   }
 
