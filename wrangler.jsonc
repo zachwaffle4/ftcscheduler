@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "ftc-scheduler",
+  "name": "ftcscheduler",
   "compatibility_date": "2026-07-01",
   "observability": {
     "enabled": true
@@ -10,5 +10,6 @@
   },
   "compatibility_flags": [
     "nodejs_compat"
-  ]
+  ],
+  "previews": {}
 }
