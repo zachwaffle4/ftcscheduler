@@ -9,7 +9,9 @@ import TeamSlotTable from '../components/TeamSlotTable.vue'
 import {
   config,
   findings,
+  downloadConfig,
   hydrateFromUrl,
+  importConfigFile,
   multiDay,
   resetConfig,
   schedule,
@@ -17,7 +19,7 @@ import {
 } from '../composables/eventConfig'
 import { fmtDateRange, fmtDateShort, fmtDuration, fmtTime } from '../lib/format'
 import { printScope } from '../lib/print'
-import { CalendarDays, ChartColumn, Check, Info, Printer, RotateCcw, Share2 } from '@lucide/vue'
+import { CalendarDays, ChartColumn, Check, Download, Info, Printer, RotateCcw, Share2, Upload } from '@lucide/vue'
 import { QUAL_MIN_BREAK_MINUTES } from '../lib/manual'
 
 const d = computed(() => schedule.value.derived)
@@ -49,6 +51,20 @@ function overrunsTarget(index: number): boolean {
 onMounted(() => {
   hydrateFromUrl()
 })
+
+const importInput = ref<HTMLInputElement | null>(null)
+const importError = ref('')
+
+async function onImportPicked(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = '' // allow re-picking the same file
+  if (!file) return
+  if (!window.confirm('Importing replaces the current schedule. Continue?')) return
+  const error = await importConfigFile(file)
+  importError.value = error ?? ''
+  if (error) setTimeout(() => (importError.value = ''), 6000)
+}
 
 const shareLabel = ref('Share')
 const shareCopied = ref(false)
@@ -91,10 +107,25 @@ async function copyShareLink(): Promise<void> {
       <button class="btn-ghost" @click="copyShareLink">
         <component :is="shareCopied ? Check : Share2" class="icon" />{{ shareLabel }}
       </button>
+      <button class="btn-ghost" title="Save this schedule as a JSON file" @click="downloadConfig">
+        <Download class="icon" />Export
+      </button>
+      <button class="btn-ghost" title="Load a schedule from an exported JSON file" @click="importInput?.click()">
+        <Upload class="icon" />Import
+      </button>
+      <input
+        ref="importInput"
+        type="file"
+        accept=".json,application/json"
+        style="display: none"
+        @change="onImportPicked"
+      />
       <button class="btn-ghost" @click="resetConfig"><RotateCcw class="icon" />Reset</button>
       <router-link to="/about" class="btn-ghost"><Info class="icon" />About</router-link>
     </div>
   </div>
+
+  <p v-if="importError" class="no-print behind" role="alert">{{ importError }}</p>
 
   <ConfigPanel />
 

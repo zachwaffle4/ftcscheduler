@@ -3,6 +3,7 @@ import {
   buildSchedule,
   clampDay,
   defaultConfig,
+  defaultDayBreak,
   defaultEventDay,
   defaultMatchBlocks,
   normalizeConfig,
@@ -114,6 +115,82 @@ export function shareUrl(): string {
   return `${window.location.origin}${window.location.pathname}?c=${encodeConfig(config.value)}`
 }
 
+/* ------------------------------------------------------------ File export/import */
+
+const FILE_FORMAT = 'ftcscheduler'
+const FILE_VERSION = 1
+
+/** Serialize the current event as a JSON string wrapped in a small identifying envelope. */
+export function exportConfigJson(): string {
+  return JSON.stringify(
+    { format: FILE_FORMAT, version: FILE_VERSION, exportedAt: new Date().toISOString(), config: config.value },
+    null,
+    2,
+  )
+}
+
+function fileSlug(): string {
+  const slug = config.value.eventName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return slug || 'ftc-schedule'
+}
+
+/** Download the current event as `<event-name>.ftcsched.json`. */
+export function downloadConfig(): void {
+  const blob = new Blob([exportConfigJson()], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${fileSlug()}.ftcsched.json`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
+/**
+ * Parse an exported file's text. Accepts the export envelope or a bare config object,
+ * and runs the result through `normalizeConfig` so files from older versions still open.
+ * Returns an error message rather than throwing, for the UI to show.
+ */
+export function parseConfigFile(text: string): { config: EventConfig } | { error: string } {
+  let data: unknown
+  try {
+    data = JSON.parse(text)
+  } catch {
+    return { error: 'That file is not valid JSON.' }
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return { error: 'That file does not contain a schedule.' }
+  }
+
+  const obj = data as Record<string, unknown>
+  const inner = obj.format === FILE_FORMAT ? obj.config : 'config' in obj ? obj.config : obj
+  if (!inner || typeof inner !== 'object' || Array.isArray(inner)) {
+    return { error: 'That file does not contain a schedule.' }
+  }
+  const keys = inner as Record<string, unknown>
+  if (!('matchBlocks' in keys) && !('days' in keys) && !('numTeams' in keys)) {
+    return { error: 'That file does not look like an FTC schedule export.' }
+  }
+
+  try {
+    return { config: normalizeConfig(inner) }
+  } catch {
+    return { error: 'That schedule could not be read.' }
+  }
+}
+
+/** Read a chosen file and, if it parses, replace the current event with it. */
+export async function importConfigFile(file: File): Promise<string | null> {
+  const result = parseConfigFile(await file.text())
+  if ('error' in result) return result.error
+  config.value = result.config
+  return null
+}
+
 /* ----------------------------------------------------------------- Event days */
 
 /**
@@ -155,6 +232,17 @@ export function removeEventDay(id: string): void {
   config.value.days = days.filter((d) => d.id !== id)
 }
 
+/** Add a break to a day, defaulting to lunch at noon. */
+export function addDayBreak(dayId: string): void {
+  const day = config.value.days.find((d) => d.id === dayId)
+  if (day) day.breaks.push(defaultDayBreak())
+}
+
+export function removeDayBreak(dayId: string, breakId: string): void {
+  const day = config.value.days.find((d) => d.id === dayId)
+  if (day) day.breaks = day.breaks.filter((b) => b.id !== breakId)
+}
+
 /* --------------------------------------------------------------- Match blocks */
 
 let blockIdSeq = 0
@@ -183,7 +271,6 @@ export function addMatchBlock(day = 0): void {
     matchCount: 10,
     endTime: fmtTime24(endsAt),
     cycleMinutes: cycle,
-    breakAfter: null,
   })
 }
 
@@ -211,12 +298,6 @@ export function moveMatchBlock(id: string, delta: -1 | 1): void {
   next[i] = target.b
   next[target.index] = blocks[i]
   config.value.matchBlocks = next
-}
-
-export function toggleBlockBreak(id: string): void {
-  const block = config.value.matchBlocks.find((b) => b.id === id)
-  if (!block) return
-  block.breakAfter = block.breakAfter ? null : { label: 'Lunch', minutes: 45 }
 }
 
 /**

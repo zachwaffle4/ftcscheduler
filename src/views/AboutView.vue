@@ -38,7 +38,7 @@ const choices = [
   ['Judge turnaround gap', 'Not specified. Defaults to 5 minutes between interviews for deliberation and the feedback form.'],
   ['Opening ceremony', 'Not specified. Defaults to 15 minutes.'],
   ['Alliance selection', 'T701 says only "typically just after the last scheduled Qualification MATCH". Defaults to 20 minutes.'],
-  ['Lunch and breaks', 'Entirely the Event Director’s call — configure them per match block.'],
+  ['Lunch and breaks', 'Entirely the Event Director’s call — add them per day, at a clock time.'],
   ['Drivers meeting', 'Not specified. Defaults to 15 minutes, immediately before the opening ceremony.'],
   ['How check-in closes', 'I102 sets a 45-minute deadline but defers to the Event Director. Some regions — Massachusetts among them — instead keep check-in open and make each team’s own judging slot its deadline. Both are supported; pick the one your region runs, and the compliance checks follow.'],
   ['How many days the event runs', 'The manual sets no event length and never says a tournament is one day. §13.6.1 makes the number of qualification matches per team the Event Director’s call "based on available schedule time allocated", which is the only place day count enters the rules at all. Add days as you need them; each gets its own start time, pits-open window, drivers meeting and target finish, and you assign matches, judging, inspection and practice to whichever day runs them. Alliance selection, the bracket and awards always close the last day.'],

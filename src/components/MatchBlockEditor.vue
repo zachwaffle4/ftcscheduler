@@ -10,7 +10,6 @@ import {
   removeMatchBlock,
   reseedMatchBlocks,
   schedule,
-  toggleBlockBreak,
 } from '../composables/eventConfig'
 import { blockOrder, clampDay } from '../lib/schedule'
 import { fmtDateShort, fmtDuration, fmtTime } from '../lib/format'
@@ -18,7 +17,6 @@ import {
   ArrowDown,
   ArrowLeftRight,
   ArrowUp,
-  Minus,
   Plus,
   RotateCcw,
   TriangleAlert,
@@ -184,26 +182,6 @@ function isStarved(index: number): boolean {
                 it
               </template>
             </span>
-
-            <button class="btn-ghost" @click="toggleBlockBreak(entry.block.id)">
-              <component :is="entry.block.breakAfter ? Minus : Plus" class="icon" />
-              {{ entry.block.breakAfter ? 'Remove break' : 'Break after' }}
-            </button>
-          </div>
-
-          <div v-if="entry.block.breakAfter" class="block-break-row">
-            <div class="field" style="width: 180px">
-              <label>Break name</label>
-              <input v-model="entry.block.breakAfter.label" type="text" placeholder="Lunch" />
-            </div>
-            <NumberField
-              v-model="entry.block.breakAfter.minutes"
-              label="Length"
-              suffix="min"
-              :min="0"
-              :max="240"
-              width="100px"
-            />
           </div>
         </div>
       </div>
